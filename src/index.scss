@@ -1,0 +1,58 @@
+.temp-edit {
+  &__panel {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    min-height: 0;
+    background-color: var(--b3-theme-background);
+  }
+
+  &__header {
+    display: flex;
+    align-items: center;
+    flex: none;
+    padding: 8px 16px;
+    border-bottom: 0.5px solid var(--b3-border-color);
+  }
+
+  &__title {
+    flex: none;
+    margin-right: 8px;
+    font-weight: 600;
+  }
+
+  &__tip {
+    flex: 0 1 auto;
+    min-width: 0;
+    margin-right: 8px;
+    overflow: hidden;
+    color: var(--b3-theme-on-surface);
+    font-size: 12px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  &__copy,
+  &__clear {
+    flex: none;
+    min-height: 24px;
+    padding: 0 8px;
+    font-size: 12px;
+  }
+
+  &__clear {
+    margin-left: 8px;
+  }
+
+  &__body {
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+    min-height: 0;
+
+    > .protyle {
+      flex: 1;
+      min-height: 0;
+    }
+  }
+}

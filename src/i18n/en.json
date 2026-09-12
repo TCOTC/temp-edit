@@ -1,0 +1,10 @@
+{
+  "topBarTitle": "Temp Edit",
+  "tabTitle": "Temp Edit",
+  "tabTip": "Content stays in this tab and is never written to the workspace",
+  "copyBtn": "Copy Markdown",
+  "clearBtn": "Clear",
+  "copied": "Markdown copied",
+  "copyFailed": "Failed to copy Markdown",
+  "nothingToCopy": "Nothing to copy"
+}
