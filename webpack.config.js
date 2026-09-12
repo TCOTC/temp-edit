@@ -15,8 +15,9 @@ module.exports = (env, argv) => {
         plugins.push(
             new CopyPlugin({
                 patterns: [
-                    {from: "preview.png", to: "./dist/"},
-                    {from: "icon.png", to: "./dist/"},
+                    // 图标与预览图属于可选资源，缺失时不中断构建，存在时照常打包
+                    {from: "preview.png", to: "./dist/", noErrorOnMissing: true},
+                    {from: "icon.png", to: "./dist/", noErrorOnMissing: true},
                     {from: "README*.md", to: "./dist/"},
                     {from: "plugin.json", to: "./dist/"},
                     {from: "src/i18n/", to: "./dist/i18n/"},
