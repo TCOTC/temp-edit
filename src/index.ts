@@ -8,6 +8,7 @@ import {
 } from "siyuan";
 import type {
     Custom,
+    IOperation,
     IProtyleOptions,
 } from "siyuan";
 import type zhCN from "./i18n/zh-CN.json";
@@ -38,17 +39,21 @@ const EDITOR_OPTIONS: IProtyleOptions = {
 
 interface ITempEditor {
     instance: Protyle;
-    hintElement: HTMLElement;
 }
 
 // 与内核 genEmptyElement(false, false) 保持一致，用于初始化可编辑空段落
-const genEmptyParagraph = () => {
+// 传入 id 可复用已有块 ID，供清空操作在撤销栈中保持锚点有效
+// 参照 protyle/util/onGet.ts 的写法补上空段落占位提示，由 .protyle-wysiwyg--empty:empty::before 显示
+const genEmptyParagraph = (id?: string) => {
     const element = document.createElement("div");
-    element.setAttribute("data-node-id", window.Lute.NewNodeID());
+    element.setAttribute("data-node-id", id || window.Lute.NewNodeID());
     element.setAttribute("data-type", "NodeParagraph");
     element.className = "p";
     element.innerHTML =
         `<div contenteditable="true" spellcheck="${window.siyuan.config.editor.spellcheck}"></div><div class="protyle-attr" contenteditable="false">${Constants.ZWSP}</div>`;
+    const editElement = element.firstElementChild as HTMLElement;
+    editElement.classList.add("protyle-wysiwyg--empty");
+    editElement.setAttribute("placeholder", window.siyuan.languages.emptyPlaceholder);
     return element;
 };
 
@@ -69,20 +74,18 @@ export default class TempEditPlugin extends Plugin {
         const resizeTab = (element: Element) => this.editors.get(element)?.instance.resize();
         const unmountTab = (element: Element) => this.unmount(element);
         // 注册自定义页签类型，页签内容由 Protyle Lite 临时编辑器填充
-        // 插件声明文件里 init/resize/destroy 未标注 this，这里按实际运行时的 Custom 实例处理
-        const tabOptions = {
+        this.addTab({
             type: TAB_TYPE,
-            init(this: Custom) {
+            init() {
                 mountTab(this);
             },
-            resize(this: Custom) {
+            resize() {
                 resizeTab(this.element);
             },
-            destroy(this: Custom) {
+            destroy() {
                 unmountTab(this.element);
             },
-        };
-        this.addTab(tabOptions as unknown as Parameters<Plugin["addTab"]>[0]);
+        });
     }
 
     onLayoutReady() {
@@ -133,17 +136,12 @@ export default class TempEditPlugin extends Plugin {
         const protyle = instance.protyle;
         // 未加载文档时不会写入该属性，需与内核加载文档后的状态保持一致
         protyle.wysiwyg.element.setAttribute("data-readonly", "false");
-        // 提示层按视口定位，挂载到 body 避免被页签容器裁剪
-        const hintElement = protyle.hint.element;
-        document.body.appendChild(hintElement);
-        protyle.toolbar.subElement.setAttribute("data-position-boundary", "viewport");
 
         this.resetContent(instance);
-        this.editors.set(custom.element, {instance, hintElement});
+        this.editors.set(custom.element, {instance});
 
         panel.querySelector(".temp-edit__clear").addEventListener("click", () => {
-            this.resetContent(instance);
-            instance.focus();
+            this.clearContent(instance);
         });
         panel.querySelector(".temp-edit__copy").addEventListener("click", () => {
             const markdown = protyle.lute.BlockDOM2StdMd(protyle.wysiwyg.element.innerHTML).trim();
@@ -167,8 +165,6 @@ export default class TempEditPlugin extends Plugin {
             return;
         }
         this.editors.delete(element);
-        // Protyle 的 destroy 不会移除提示层元素，需手动清理
-        editor.hintElement.remove();
         editor.instance.destroy();
     }
 
@@ -177,5 +173,60 @@ export default class TempEditPlugin extends Plugin {
         wysiwygElement.innerHTML = "";
         wysiwygElement.appendChild(genEmptyParagraph());
         instance.clearStack();
+    }
+
+    // 清空需通过 transaction 写入撤销栈，lite 模式下仅压入前端栈（LocalUndo）而不提交内核；
+    // transaction 不会修改 DOM，因此这里需同步替换本地内容
+    private clearContent(instance: Protyle) {
+        const wysiwygElement = instance.protyle.wysiwyg.element;
+        const blockElements = Array.from(wysiwygElement.children)
+            .filter((item) => item.hasAttribute("data-node-id")) as HTMLElement[];
+        if (blockElements.length === 0) {
+            return;
+        }
+        const firstBlockElement = blockElements[0];
+        // 已是单个空段落时无需清空，避免产生"撤销后无变化"的记录
+        if (
+            blockElements.length === 1 &&
+            firstBlockElement.getAttribute("data-type") === "NodeParagraph" &&
+            (firstBlockElement.textContent || "").replace(new RegExp(Constants.ZWSP, "g"), "").trim() === ""
+        ) {
+            instance.focusBlock(firstBlockElement);
+            return;
+        }
+
+        // 清空后的空段落复用首块 ID，使撤销/重做中的插入操作始终有可用锚点
+        const firstID = firstBlockElement.getAttribute("data-node-id");
+        const emptyParagraph = genEmptyParagraph(firstID);
+        const doOperations: IOperation[] = [{
+            action: "update",
+            id: firstID,
+            data: emptyParagraph.outerHTML,
+        }];
+        const undoOperations: IOperation[] = [];
+        for (let index = 1; index < blockElements.length; index++) {
+            const blockElement = blockElements[index];
+            // 逐个插入并以前一个块为锚点，锚点在恢复过程中始终存在
+            undoOperations.push({
+                action: "insert",
+                id: blockElement.getAttribute("data-node-id"),
+                data: blockElement.outerHTML,
+                previousID: blockElements[index - 1].getAttribute("data-node-id"),
+            });
+            doOperations.push({
+                action: "delete",
+                id: blockElement.getAttribute("data-node-id"),
+            });
+        }
+        undoOperations.push({
+            action: "update",
+            id: firstID,
+            data: firstBlockElement.outerHTML,
+        });
+
+        wysiwygElement.innerHTML = "";
+        wysiwygElement.appendChild(emptyParagraph);
+        instance.transaction(doOperations, undoOperations);
+        instance.focusBlock(emptyParagraph);
     }
 }

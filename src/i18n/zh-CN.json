@@ -1,7 +1,7 @@
 {
   "topBarTitle": "临时编辑",
   "tabTitle": "临时编辑",
-  "tabTip": "内容仅保留在当前页签，不会写入工作空间",
+  "tabTip": "内容不保存在任何地方，关闭页签、关闭思源、刷新页面后无法找回",
   "copyBtn": "复制 Markdown",
   "clearBtn": "清空",
   "copied": "已复制 Markdown",

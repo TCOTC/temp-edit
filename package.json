@@ -33,7 +33,7 @@
     "mini-css-extract-plugin": "^2.10.2",
     "sass": "^1.102.0",
     "sass-loader": "^17.0.0",
-    "siyuan": "1.2.3",
+    "siyuan": "github:siyuan-note/petal#726302f78722b4ae99bce0cf6cf3aa9f3ed310bb",
     "tslib": "^2.8.1",
     "typescript": "^6.0.3",
     "webpack": "^5.109.2",
